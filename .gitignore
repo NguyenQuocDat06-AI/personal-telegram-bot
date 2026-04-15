@@ -1,0 +1,28 @@
+# --- Python Specific ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+
+
+# Chặn tất cả các file chứa Token, Password, API Key
+.env
+.env.*
+!.env.example 
+
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+*.db
+*.sqlite3
+
+# --- Logs ---
+*.log
+logs/
