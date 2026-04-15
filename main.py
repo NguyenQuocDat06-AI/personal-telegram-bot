@@ -1,33 +1,58 @@
+import asyncio
 import uvicorn
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from routers.github import router as github_router
+from core.bot import bot, dp
 from core.telegram import send_telegram_msg
+from routers.github import router as github_router
+from routers.landmark import router as landmark_router
 
-# Xử lý các tác vụ thực hiện khi Khởi động và Tắt ứng dụng
+# Đăng ký aiogram router vào Dispatcher
+dp.include_router(landmark_router)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # --- Khi khởi động ---
-    send_telegram_msg("🟢 API Server (FastAPI) cho Bot đã khởi động!")
-    yield
-    # --- Khi tắt ứng dụng ---
-    send_telegram_msg("🔴 API Server cho Bot đã dừng!")
+    """
+    Quản lý vòng đời app:
+    - Startup: khởi động Telegram bot polling trong asyncio background task
+    - Shutdown: huỷ polling task, đóng bot session
+    """
+    # Xoá webhook cũ (nếu có) trước khi polling
+    await bot.delete_webhook(drop_pending_updates=True)
+
+    # Chạy polling song song với FastAPI (non-blocking)
+    polling_task = asyncio.create_task(dp.start_polling(bot))
+    send_telegram_msg("🤖 <b>Bot đã khởi động!</b>")
+
+    yield  # FastAPI đang chạy
+
+    # Dừng polling khi shutdown
+    polling_task.cancel()
+    try:
+        await polling_task
+    except asyncio.CancelledError:
+        pass
+
+    await bot.session.close()
+    send_telegram_msg("🔴 <b>Bot đã dừng.</b>")
+
 
 app = FastAPI(
     title="Personal Telegram Bot API",
-    description="Bot API quản lý thông báo, webhook và các tác vụ cá nhân",
+    description="Bot API",
     lifespan=lifespan
 )
 
-# Thêm router cho github webhook
+# FastAPI router cho GitHub Webhook (vẫn giữ nguyên)
 app.include_router(github_router)
+
 
 @app.get("/")
 async def root():
-    return {"message": "Telegram Bot API đang hoạt động!"}
+    return {"message": "Telegram Bot API start!"}
+
 
 if __name__ == "__main__":
-    # Để API có thể được gọi từ bên ngoài thông qua IP public (như 13.229.155.181) -> host="0.0.0.0"
-    # Lắng nghe ở port 8001 theo yêu cầu của bạn
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=False)
