@@ -6,10 +6,6 @@ from contextlib import asynccontextmanager
 from core.bot import bot, dp
 from core.telegram import send_telegram_msg
 from routers.github import router as github_router
-from routers.landmark import router as landmark_router
-
-# Đăng ký aiogram router vào Dispatcher
-dp.include_router(landmark_router)
 
 
 @asynccontextmanager
