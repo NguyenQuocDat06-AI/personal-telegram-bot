@@ -4,3 +4,4 @@ uvicorn
 requests
 httpx
 aiogram>=3.0
+supabase

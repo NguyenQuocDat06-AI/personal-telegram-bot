@@ -1,11 +1,20 @@
 import asyncio
 import uvicorn
+import logging
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
 from core.bot import bot, dp
+from core.commands import setup_commands
 from core.telegram import send_telegram_msg
 from routers.github import router as github_router
+
+# Cấu hình logging để xem log của cả FastAPI và Aiogram
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -18,8 +27,12 @@ async def lifespan(app: FastAPI):
     # Xoá webhook cũ (nếu có) trước khi polling
     await bot.delete_webhook(drop_pending_updates=True)
 
+    # Cấu hình danh sách lệnh (menu)
+    await setup_commands(bot)
+    
     # Chạy polling song song với FastAPI (non-blocking)
-    polling_task = asyncio.create_task(dp.start_polling(bot))
+    # Tắt handle_signals để FastAPI tự quản lý việc shutdown
+    polling_task = asyncio.create_task(dp.start_polling(bot, handle_signals=False))
     send_telegram_msg("🤖 <b>Bot đã khởi động!</b>")
 
     yield  # FastAPI đang chạy
@@ -28,11 +41,10 @@ async def lifespan(app: FastAPI):
     polling_task.cancel()
     try:
         await polling_task
-    except asyncio.CancelledError:
+    except (asyncio.CancelledError, Exception):
         pass
 
     await bot.session.close()
-    send_telegram_msg("🔴 <b>Bot đã dừng.</b>")
 
 
 app = FastAPI(
